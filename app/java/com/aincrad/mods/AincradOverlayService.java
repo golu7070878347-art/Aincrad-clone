@@ -3,7 +3,9 @@ package com.aincrad.mods;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
+import android.os.Build;
 import android.os.IBinder;
+import android.provider.Settings;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -22,8 +24,16 @@ public class AincradOverlayService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+
+        // Permission nahi hai to crash hone ki jagah service band kar do
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            Toast.makeText(this, "Floating permission nahi hai", Toast.LENGTH_LONG).show();
+            stopSelf();
+            return;
+        }
+
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        
+
         LayoutInflater inflater = LayoutInflater.from(this);
         floatingIconView = inflater.inflate(R.layout.floating_widget, null);
 
@@ -49,9 +59,8 @@ public class AincradOverlayService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (floatingIconView != null) {
+        if (floatingIconView != null && windowManager != null) {
             windowManager.removeView(floatingIconView);
         }
     }
 }
-
