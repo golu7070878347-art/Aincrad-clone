@@ -17,7 +17,7 @@
         android:layout_marginBottom="20dp"/>
 
     <EditText
-        android:id="@+id/etKey"
+        android:id="@+id/keyInputField"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Enter Key (RITIK-OB55-DEMO-2026)"
@@ -28,7 +28,7 @@
         android:layout_marginBottom="16dp"/>
 
     <Button
-        android:id="@+id/btnActivate"
+        android:id="@+id/loginSubmitButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Activate Mod"
