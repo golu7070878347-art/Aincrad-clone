@@ -1,72 +1,91 @@
 #!/bin/bash
-set -euo pipefail
+set -e
 
 echo "[1/4] Preparing build workspace..."
 PROJECT_DIR="${WORKSPACE:-$(pwd)}"
 cd "$PROJECT_DIR"
-rm -rf build
-mkdir -p build/classes build/dex
 
-# Agar Gradle project hai to seedha APK bana do
-if [ -f "gradlew" ]; then
-    echo "[2/4] Gradle project mila, assembleDebug chala rahe hain..."
-    chmod +x gradlew
-    ./gradlew assembleDebug --no-daemon
-    APK_FILE="$(find . -path '*outputs/apk*' -name '*.apk' | head -n 1)"
-    if [ -z "$APK_FILE" ]; then
-        echo "Error: APK nahi mili"
-        exit 1
-    fi
-    cp "$APK_FILE" AincradMods_signed.apk
-    echo "[4/4] Build complete: AincradMods_signed.apk"
-    exit 0
+if [ ! -f "app/src/main/AndroidManifest.xml" ]; then
+    echo "Error: app/src/main/AndroidManifest.xml nahi mili"
+    exit 1
 fi
 
-echo "[2/4] Compiling Java code using javac..."
-find . -name "*.java" -not -path "./build/*" > sources.txt
+echo "[2/4] Gradle files check kar rahe hain..."
 
-if [ ! -s sources.txt ]; then
-    echo "Koi .java file nahi mili, test file bana rahe hain..."
-    mkdir -p build/testsrc
-    cat > build/testsrc/Test.java << 'JAVA'
-public class Test {
-    public static void main(String[] args) {
-        System.out.println("GitHub Actions Build Working!");
+if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
+    echo "settings.gradle bana rahe hain"
+    cat > settings.gradle << 'GRADLE_EOF'
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
     }
 }
-JAVA
-    echo "build/testsrc/Test.java" > sources.txt
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = "AincradMods"
+include ':app'
+GRADLE_EOF
 fi
 
-# Android SDK ka android.jar classpath mein daalo (agar mile)
-ANDROID_JAR=""
-if [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/platforms" ]; then
-    ANDROID_JAR="$(ls -d "$ANDROID_HOME"/platforms/android-*/android.jar 2>/dev/null | sort -V | tail -n 1 || true)"
+if [ ! -f "gradle.properties" ]; then
+    echo "gradle.properties bana rahe hain"
+    cat > gradle.properties << 'PROP_EOF'
+android.useAndroidX=true
+org.gradle.jvmargs=-Xmx2g
+PROP_EOF
 fi
 
-if [ -n "$ANDROID_JAR" ]; then
-    javac --release 8 -cp "$ANDROID_JAR" -d build/classes @sources.txt
+if [ ! -f "app/build.gradle" ] && [ ! -f "app/build.gradle.kts" ]; then
+    echo "app/build.gradle bana rahe hain"
+    cat > app/build.gradle << 'APP_EOF'
+plugins {
+    id 'com.android.application' version '8.5.2'
+}
+
+android {
+    namespace 'com.aincrad.mods'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.aincrad.mods'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core:1.12.0'
+}
+APP_EOF
+fi
+
+echo "[3/4] APK build ho raha hai (Gradle)..."
+if [ -f "gradlew" ]; then
+    chmod +x gradlew
+    ./gradlew assembleDebug --no-daemon
 else
-    javac --release 8 -d build/classes @sources.txt
-fi
-rm -f sources.txt
-
-echo "[3/4] Generating DEX using D8..."
-D8=""
-if [ -n "${ANDROID_HOME:-}" ] && [ -d "$ANDROID_HOME/build-tools" ]; then
-    D8="$(ls -d "$ANDROID_HOME"/build-tools/*/d8 2>/dev/null | sort -V | tail -n 1 || true)"
+    gradle assembleDebug --no-daemon
 fi
 
-if [ -n "$D8" ]; then
-    CLASS_FILES="$(find build/classes -name '*.class')"
-    if [ -n "$ANDROID_JAR" ]; then
-        "$D8" --release --lib "$ANDROID_JAR" --output build/dex $CLASS_FILES
-    else
-        "$D8" --release --output build/dex $CLASS_FILES
-    fi
-    echo "DEX ban gayi: build/dex/classes.dex"
-else
-    echo "Warning: d8 nahi mila, DEX step skip kiya."
+echo "[4/4] APK copy kar rahe hain..."
+APK_FILE="$(find . -path '*outputs/apk*' -name '*.apk' | head -n 1)"
+if [ -z "$APK_FILE" ]; then
+    echo "Error: APK nahi mili"
+    exit 1
 fi
-
-echo "[4/4] Build script completed successfully!"
+cp "$APK_FILE" AincradMods_signed.apk
+echo "Build completed successfully: AincradMods_signed.apk"
